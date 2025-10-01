@@ -2,7 +2,7 @@ import numpy as np
 import gymnasium as gym
 from agent import Agent
 
-"""On-policy first-visit MC control"""
+"""On-policy TD(0) Sarsa control"""
 
 if __name__ == "__main__":
     # Create FrozenLake environment
@@ -16,6 +16,6 @@ if __name__ == "__main__":
     epsilon = 1.0
     learning_rate = 0.2
 
-    mc_agent = Agent(env, gamma, learning_rate, epsilon)
-    mc_agent.mc_control(n_espisodes)
-    mc_agent.plot_value_and_policy(is_slippery=is_slippery, algorithm="MC Control")
+    sarsa_agent = Agent(env, gamma, learning_rate, epsilon)
+    sarsa_agent.sarsa(n_espisodes)
+    sarsa_agent.plot_value_and_policy(is_slippery=is_slippery, algorithm="SARSA")

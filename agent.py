@@ -20,6 +20,7 @@ class Agent:
         self.gamma = gamma
         self.learning_rate = learning_rate
         self.epsilon_init = epsilon_init
+        self.epsilon = epsilon_init
 
         self.n_state = env.observation_space.n
         self.n_action = env.action_space.n
@@ -32,7 +33,7 @@ class Agent:
         else:
             return np.argmax(self.Q[state, :])
 
-    def simulate_episode(self, epsilon):
+    def simulate_episode_greedy(self):
         #reach_goal = False
         #while not reach_goal:
         state, info = self.env.reset() # starting state at 0
@@ -41,7 +42,7 @@ class Agent:
         reward_hist = []
         while True:
             # Select action using epsilon-greedy policy given current Q
-            action = self.epsilon_greedy_policy(state, epsilon)
+            action = self.epsilon_greedy_policy(state, self.epsilon)
             action_hist.append(action)
 
             state, reward, done, truncated, info = self.env.step(action)
@@ -49,7 +50,7 @@ class Agent:
             reward_hist.append(reward)
                 
             if state == 15: # 15 is the goal state
-                reach_goal = True
+                #reach_goal = True
                 break
             if done or truncated:
                 break
@@ -132,15 +133,16 @@ class Agent:
         plt.show()
 
     def mc_control(self, n_espisodes):
+        """On-policy first-visit MC control algorithm"""
 
         for episode in range(n_espisodes):
             # epsilon decay to impose GLIE
             if episode > 1000:
-                epsilon = max(self.epsilon_init * 0.95 ** (episode-1000), 0.01)
+                self.epsilon = max(self.epsilon_init * 0.95 ** (episode-1000), 0.01)
             else:
-                epsilon = self.epsilon_init
+                self.epsilon = self.epsilon_init
 
-            state_hist, action_hist, reward_hist = self.simulate_episode(epsilon)
+            state_hist, action_hist, reward_hist = self.simulate_episode_greedy()
 
             G = 0
             for t in reversed(range(len(action_hist))):
@@ -154,3 +156,54 @@ class Agent:
         policy_star = np.argmax(Q_star, axis=1) # TODO: check this
         
         return Q_star, policy_star
+    
+    def sarsa(self, n_episodes):
+        """On-policy TD(0) Sarsa control"""
+
+        for episode in range(n_episodes):
+            # epsilon decay to impose GLIE
+            if episode > 1000:
+                self.epsilon = max(self.epsilon_init * 0.95 ** (episode-1000), 0.01)
+            else:
+                self.epsilon = self.epsilon_init
+            
+            state, info = self.env.reset() # starting state at 0
+
+            action = self.epsilon_greedy_policy(state, self.epsilon)
+            
+            while True:
+                state_plus, reward, done, truncated, info = self.env.step(action)
+
+                action_plus = self.epsilon_greedy_policy(state_plus, self.epsilon)
+
+                self.Q[state, action] += self.learning_rate * (reward + self.gamma * self.Q[state_plus, action_plus] - self.Q[state, action])
+
+                state = state_plus
+                action = action_plus
+
+                if state == 15 or done or truncated:
+                    break
+
+    def q_learning(self, n_episodes):
+        """Off-policy TD(0) Q-learning control"""
+
+        for episode in range(n_episodes):
+            # epsilon decay to impose GLIE
+            if episode > 1000:
+                self.epsilon = max(self.epsilon_init * 0.95 ** (episode-1000), 0.01)
+            else:
+                self.epsilon = self.epsilon_init
+            
+            state, info = self.env.reset() # starting state at 0
+
+            while True:
+                action = self.epsilon_greedy_policy(state, self.epsilon)
+
+                state_plus, reward, done, truncated, info = self.env.step(action)
+
+                self.Q[state, action] += self.learning_rate * (reward + self.gamma * np.max(self.Q[state_plus,:]) - self.Q[state, action])
+
+                state = state_plus
+
+                if state == 15 or done or truncated:
+                    break
