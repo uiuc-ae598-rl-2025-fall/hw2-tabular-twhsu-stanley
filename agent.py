@@ -27,6 +27,9 @@ class Agent:
 
         self.Q = np.zeros((self.n_state, self.n_action))
 
+        self.evaluation_return = []
+        self.evaluation_return.append(np.max(self.Q[0, :]))
+
     def epsilon_greedy_policy(self, state, epsilon):
         if np.random.rand() < epsilon:
             return np.random.choice(self.n_action)
@@ -132,15 +135,21 @@ class Agent:
 
         plt.show()
 
-    def mc_control(self, n_espisodes):
+    def mc_control(self, n_episodes):
         """On-policy first-visit MC control algorithm"""
 
-        for episode in range(n_espisodes):
-            # epsilon decay to impose GLIE
-            if episode > 1000:
-                self.epsilon = max(self.epsilon_init * 0.95 ** (episode-1000), 0.01)
+        for episode in range(n_episodes):
+            # Schedule epsilon decay to impose GLIE
+            if episode >= 1:
+                self.epsilon = max(self.epsilon_init * 0.9999 ** (episode-1), 0)
             else:
                 self.epsilon = self.epsilon_init
+
+            # Schedule learning rate decay to enhance stability
+            if episode >= 5000:
+                learning_rate = max(self.learning_rate * 0.9999 ** (episode-5000), 0.0001)
+            else:
+                learning_rate = self.learning_rate
 
             state_hist, action_hist, reward_hist = self.simulate_episode_greedy()
 
@@ -150,7 +159,8 @@ class Agent:
 
                 # check first visit
                 if is_first_visit(state_hist, action_hist, t):
-                    self.Q[state_hist[t], action_hist[t]] += self.learning_rate * (G - self.Q[state_hist[t], action_hist[t]])
+                    self.Q[state_hist[t], action_hist[t]] += learning_rate * (G - self.Q[state_hist[t], action_hist[t]])
+                    self.evaluation_return.append(np.max(self.Q[0, :]))
         
         Q_star = self.Q.copy()
         policy_star = np.argmax(Q_star, axis=1) # TODO: check this
@@ -161,11 +171,17 @@ class Agent:
         """On-policy TD(0) Sarsa control"""
 
         for episode in range(n_episodes):
-            # epsilon decay to impose GLIE
-            if episode > 1000:
-                self.epsilon = max(self.epsilon_init * 0.95 ** (episode-1000), 0.01)
+            # Schedule epsilon decay to impose GLIE
+            if episode >= 1:
+                self.epsilon = max(self.epsilon_init * 0.9999 ** (episode-1), 0)
             else:
                 self.epsilon = self.epsilon_init
+
+            # Schedule learning rate decay to enhance stability
+            if episode >= 5000:
+                learning_rate = max(self.learning_rate * 0.9999 ** (episode-5000), 0.001)
+            else:
+                learning_rate = self.learning_rate
             
             state, info = self.env.reset() # starting state at 0
 
@@ -176,10 +192,12 @@ class Agent:
 
                 action_plus = self.epsilon_greedy_policy(state_plus, self.epsilon)
 
-                self.Q[state, action] += self.learning_rate * (reward + self.gamma * self.Q[state_plus, action_plus] - self.Q[state, action])
+                self.Q[state, action] += learning_rate * (reward + self.gamma * self.Q[state_plus, action_plus] - self.Q[state, action])
 
                 state = state_plus
                 action = action_plus
+
+                self.evaluation_return.append(np.max(self.Q[0, :]))
 
                 if state == 15 or done or truncated:
                     break
@@ -188,11 +206,17 @@ class Agent:
         """Off-policy TD(0) Q-learning control"""
 
         for episode in range(n_episodes):
-            # epsilon decay to impose GLIE
-            if episode > 1000:
-                self.epsilon = max(self.epsilon_init * 0.95 ** (episode-1000), 0.01)
+            # Schedule epsilon decay to impose GLIE
+            if episode >= 1:
+                self.epsilon = max(self.epsilon_init * 0.9999 ** (episode-1), 0)
             else:
                 self.epsilon = self.epsilon_init
+
+            # Schedule learning rate decay to enhance stability
+            if episode >= 5000:
+                learning_rate = max(self.learning_rate * 0.9999 ** (episode-5000), 0.001)
+            else:
+                learning_rate = self.learning_rate
             
             state, info = self.env.reset() # starting state at 0
 
@@ -201,9 +225,11 @@ class Agent:
 
                 state_plus, reward, done, truncated, info = self.env.step(action)
 
-                self.Q[state, action] += self.learning_rate * (reward + self.gamma * np.max(self.Q[state_plus,:]) - self.Q[state, action])
-
+                self.Q[state, action] += learning_rate * (reward + self.gamma * np.max(self.Q[state_plus,:]) - self.Q[state, action]) 
+                
                 state = state_plus
+
+                self.evaluation_return.append(np.max(self.Q[0, :]))
 
                 if state == 15 or done or truncated:
                     break
